@@ -1,0 +1,85 @@
+name: Slack Notification
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      # 🔐 branch 추가 가능
+  pull_request:
+    types: [opened, reopened, closed]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    env:
+      # 🔐 GitHub Secrets에서 가져옴
+      SLACK_GENERAL_WEBHOOK: ${{ secrets.SLACK_GENERAL_WEBHOOK }}
+      SLACK_USER_BACKEND_WEBHOOK: ${{ secrets.SLACK_USER_BACKEND_WEBHOOK }}
+
+      # GitHub 메타정보
+      REPO: ${{ github.repository }}
+      REF_NAME: ${{ github.ref_name }}
+      ACTOR: ${{ github.actor }}
+
+    steps:
+      - name: Send push message
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          TEXT="🟢 [${REPO}] ${ACTOR}가 '${REF_NAME}' 브랜치에 push 했습니다."
+          payload=$(echo "$TEXT" | jq -R --slurp '{"text":.}')
+
+          # **새로운 변수**를 만들어 공백을 제거합니다.
+          WEBHOOK_GENERAL=$(echo "${SLACK_GENERAL_WEBHOOK}" | tr -d '[:space:]')
+          WEBHOOK_USER=$(echo "${SLACK_USER_BACKEND_WEBHOOK}" | tr -d '[:space:]')
+
+          # 🔔 공용 채널
+          curl -X POST -H 'Content-type: application/json' \
+            --data "$payload" \
+            "${WEBHOOK_GENERAL}" # 새로운 변수 사용
+
+          # 🔔 레포 전용 채널 (조건부 실행과 함께 적용)
+          if [ -n "$WEBHOOK_USER" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "$payload" \
+              "${WEBHOOK_USER}" # 새로운 변수 사용
+          else
+            echo "SLACK_USER_BACKEND_WEBHOOK 변수가 비어있어 레포 전용 알림을 건너뜁니다."
+          fi
+
+      - name: Send PR opened / reopened message
+        if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          TEXT="📝 [${REPO}] PR 생성/수정: ${PR_TITLE}\n👤 ${ACTOR}\n🔗 ${PR_URL}"
+          # jq를 사용하여 TEXT를 안전하게 JSON 페이로드로 변환
+          payload=$(echo "$TEXT" | jq -R --slurp '{"text":.}')
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "$payload" \
+            **"${SLACK_GENERAL_WEBHOOK}"**
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "$payload" \
+            **"${SLACK_USER_FRONTEND_WEBHOOK}"**
+
+      - name: Send PR merged message
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          TEXT="✅ [${REPO}] PR 머지 완료: ${PR_TITLE}\n👤 ${ACTOR}\n🔗 ${PR_URL}"
+          # jq를 사용하여 TEXT를 안전하게 JSON 페이로드로 변환
+          payload=$(echo "$TEXT" | jq -R --slurp '{"text":.}')
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "$payload" \
+            **"${SLACK_GENERAL_WEBHOOK}"**
+
+          curl -X POST -H 'Content-type: application/json' \
+            --data "$payload" \
+            **"${SLACK_REPO_WEBHOOK}"**

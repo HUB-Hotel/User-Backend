@@ -28,22 +28,25 @@ function makeToken(user) {
 
 router.post("/register", async (req, res) => {
     try {
-        const { email, password, displayName, role } = req.body
+        const { email, password, displayName, role, phone } = req.body
 
-        if (!email || !password) {
-            return res.status(400).json({ message: "이메일/비밀번호 필요" })
+        if (!email || !password || !phone) {
+            return res.status(400).json({ message: "이메일/비밀번호/전화번호 필요" })
         }
 
         const exists = await User.findOne({
             email: email.toLowerCase()
         })
         if (exists) {
-
             return res.status(400).json({ message: "이미 가입된 이메일" })
         }
 
-        const passwordHash = await bcrypt.hash(password, 10)
+        const phoneExists = await User.findOne({ phone });
+        if (phoneExists) {
+            return res.status(400).json({ message: "이미 가입된 전화번호입니다." });
+        }
 
+        const passwordHash = await bcrypt.hash(password, 10)
         const validRoles = ["user", "admin"]
         const safeRole = validRoles.includes(role) ? role : "user"
 
@@ -51,12 +54,19 @@ router.post("/register", async (req, res) => {
             email,
             displayName,
             passwordHash,
-            role: safeRole
+            role: safeRole,
+            phone
         })
 
-        res.status(201).json({ user: user.toSafeJSON() })
+        res.status(201).json({
+            message: "회원 가입이 완료되었습니다!",
+            user: user.toSafeJSON()
+        })
 
     } catch (error) {
+        if (error.code === 11000) {
+            return res.status(400).json({ message: "중복된 정보(이메일 또는 전화번호)가 있습니다." });
+        }
         return res.status(500).json({
             message: "회원가입 실패",
             error: error.message
@@ -224,12 +234,10 @@ router.get('/kakao/callback', (req, res, next) => {
     })(req, res, next)
 })
 
-// 1. 구글 로그인 버튼 누르면 가는 곳
 router.get('/google', passport.authenticate('google', {
     scope: ['profile', 'email'] // 프로필과 이메일 정보 달라고 요청
 }));
 
-// 2. 구글 로그인 끝나고 돌아오는 곳
 router.get('/google/callback',
     passport.authenticate('google', { session: false }),
     (req, res) => {
@@ -255,6 +263,66 @@ router.get("/me", async (req, res) => {
         res.status(401).json({ message: "조회 실패", error: error.message })
     }
 })
+
+router.patch("/me", async (req, res) => {
+    try {
+        // 1. req.body에서 email도 받아오도록 추가
+        const { displayName, phone, password, email } = req.body;
+        const userId = req.user.id;
+
+        // 내 정보 찾기
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+
+        // 2. 이메일 변경 로직 (추가됨)
+
+        if (email && email !== user.email) {
+            // 소셜 로그인 유저는 이메일 변경을 막고 싶다면 이 주석을 해제하세요.
+            if (user.provider !== 'local') return res.status(400).json({ message: "소셜 계정은 이메일을 변경할 수 없습니다." });
+
+            // 중복 검사
+            const emailExists = await User.findOne({ email: email.toLowerCase() });
+            if (emailExists) {
+                return res.status(400).json({ message: "이미 사용 중인 이메일입니다." });
+            }
+            user.email = email;
+        }
+
+        // 3. 전화번호 변경 시 중복 체크
+        if (phone && phone !== user.phone) {
+            const phoneExists = await User.findOne({ phone });
+            if (phoneExists) {
+                return res.status(400).json({ message: "이미 사용 중인 전화번호입니다." });
+            }
+            user.phone = phone;
+        }
+
+        // 4. 이름 변경
+        if (displayName) {
+            user.displayName = displayName;
+        }
+
+        // 5. 비밀번호 변경
+        if (password) {
+            if (user.provider !== 'local') {
+                return res.status(400).json({ message: "소셜 로그인 유저는 비밀번호를 변경할 수 없습니다." });
+            }
+            const hash = await bcrypt.hash(password, 10);
+            user.passwordHash = hash;
+        }
+
+        // 저장
+        await user.save();
+
+        res.json({
+            message: "회원 정보가 수정되었습니다.",
+            user: user.toSafeJSON()
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: "정보 수정 실패", error: error.message });
+    }
+});
 
 router.get("/users", async (req, res) => {
     try {

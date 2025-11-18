@@ -23,6 +23,16 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: "고객님"
         },
+        phone: {
+            type: String,
+            trim: true,
+            unique: true,  // 중복 방지
+            sparse: true,  // 소셜 유저는 null 허용 (unique 충돌 방지)
+            required: function () {
+                // provider가 'local'일 때만 필수!
+                return this.provider === 'local';
+            }
+        },
         role: {
             type: String,
             enum: ["user", "admin"],

@@ -12,19 +12,19 @@ const app = express();
 
 // 환경 변수
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI;
+const MONGODB_URI = process.env.MONGODB_URI;
 const FRONT_ORIGIN = process.env.FRONT_ORIGIN || 'http://localhost:5173';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_session_secret_change_me';
 
 // 필수 값 확인
-if (!MONGO_URI) {
-  console.error('MONGO_URI가 설정되어 있지 않습니다. .env를 확인하세요.');
+if (!MONGODB_URI) {
+  console.error('MONGODB_URI 설정되어 있지 않습니다. .env를 확인하세요.');
   process.exit(1);
 }
 
 // MongoDB 연결
 mongoose.set('strictQuery', false);
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log('MongoDB connected'))
   .catch(err => {
     console.error('MongoDB 연결 실패:', err.message);

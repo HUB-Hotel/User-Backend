@@ -8,6 +8,9 @@ const passport = require('./config/passport')
 
 // authRoutes
 const authRoutes = require("./routes/authroutes")
+const lodgingRoutes = require("./routes/lodgingroutes");
+const roomRoutes = require("./routes/roomroutes");
+const reservationRoutes = require("./routes/reservationroutes");
 
 const app = express();
 const PORT = process.env.PORT || 3000
@@ -30,6 +33,9 @@ mongoose.connect(process.env.MONGODB_URI)
 app.get("/", (_req, res) => res.send("PhotoMemo API OK"));
 
 app.use("/api/auth", authRoutes)
+app.use("/api/lodgings", lodgingRoutes);
+app.use("/api/rooms", roomRoutes);
+app.use("/api/reservations", reservationRoutes);
 
 // ── 404
 app.use((req, res, next) => {                    // 추가됨: 없는 경로 처리

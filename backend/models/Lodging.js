@@ -45,6 +45,25 @@ const lodgingSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },        // 평균 평점 (리뷰에서 계산해서 넣을 값)
+    // [추가 1] 검색 목록에 보여줄 '최저가' (방 등록/수정할 때 갱신됨)
+    minPrice: {
+        type: Number,
+        default: 0, index: true
+    },
+    // [추가 2] 리뷰 개수 (평점만 있으면 신뢰도 부족, 개수도 필요)
+    reviewCount: {
+        type: Number,
+        default: 0
+    },
+    // [추가 3] 체크인/체크아웃 시간 (호텔마다 다르니까)
+    checkInTime: {
+        type: String,
+        default: "15:00"
+    },
+    checkOutTime: {
+        type: String,
+        default: "11:00"
+    },
 },
     {
         timestamps: true

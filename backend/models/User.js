@@ -12,9 +12,17 @@ const userSchema = new mongoose.Schema(
             match: [EMAIL_REGEX, "유효한 이메일"],
             unique: true,
             required: function () {
-                return !this.kakaoId;
+                return this.provider === 'local'; // ✅ 수정: 카카오, 구글 통합 대응
             }
         },
+        avatarUrl: {
+            type: String
+        },
+        // [추가 2] 찜한 숙소 목록 (Lodging ID들을 배열로 저장)
+        wishlist: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Lodging'
+        }],
         passwordHash: {
             type: String,
             select: false

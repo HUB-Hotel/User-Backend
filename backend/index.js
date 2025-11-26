@@ -1,53 +1,41 @@
 require('dotenv').config();
-
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require('cookie-parser');
-const mongoose = require("mongoose");
-const passport = require('./config/passport')
+const passport = require('./src/config/passport'); // 🚨 경로 변경됨!
 
-// authRoutes
-const authRoutes = require("./routes/authroutes")
-const lodgingRoutes = require("./routes/lodgingroutes");
-const roomRoutes = require("./routes/roomroutes");
-const reservationRoutes = require("./routes/reservationroutes");
+// ✅ DB 연결 함수
+const connectDB = require("./src/config/db");
+
+// ✅ 각 기능별 라우트 불러오기
+const authRoutes = require("./src/auth/route");
+const lodgingRoutes = require("./src/lodging/route");
+const roomRoutes = require("./src/room/route");
+const bookingRoutes = require("./src/booking/route"); // 아까 만든거
 
 const app = express();
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 3000;
 
-app.use(cors({
-  origin: process.env.FRONT_ORIGIN,              // 변경됨: .env 기반 오리진 설정
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], // 추가됨: 허용 메서드 명시
-  allowedHeaders: ['Content-Type', 'Authorization'] // 추가됨: 허용 헤더 명시
-}));
+// DB 연결
+connectDB();
 
-app.use(express.json({ limit: "2mb" }));
+// 미들웨어
+app.use(cors({ origin: process.env.FRONT_ORIGIN, credentials: true }));
+app.use(express.json());
 app.use(cookieParser());
-app.use(passport.initialize())
+app.use(passport.initialize());
 
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log("MongoDB 연결 성공"))
-  .catch((err) => console.error("MongoDB 연결 실패:", err.message));
-
-app.get("/", (_req, res) => res.send("PhotoMemo API OK"));
-
-app.use("/api/auth", authRoutes)
+// API 주소 연결
+app.use("/api/auth", authRoutes);
 app.use("/api/lodgings", lodgingRoutes);
 app.use("/api/rooms", roomRoutes);
-app.use("/api/reservations", reservationRoutes);
+app.use("/api/bookings", bookingRoutes);
 
-// ── 404
-app.use((req, res, next) => {                    // 추가됨: 없는 경로 처리
-  res.status(404).json({ message: '요청하신 경로를 찾을 수 없습니다.' });
+// 에러 핸들링
+app.use((req, res, next) => res.status(404).json({ success: false, message: 'Not Found' }));
+app.use((err, req, res, next) => {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
 });
 
-// ── error handler
-app.use((err, req, res, next) => {               // 추가됨: 전역 에러 핸들러
-  console.error('Unhandled Error:', err);
-  res.status(500).json({ message: '서버 오류', error: err?.message || String(err) });
-});
-
-app.listen(PORT, () => {
-  console.log(`Server running: http://localhost:${PORT}`); // 동일
-});
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

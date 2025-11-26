@@ -9,13 +9,22 @@ router.post("/login", controller.login);
 router.get("/me", verifyToken, controller.getMe);
 router.patch("/me", verifyToken, controller.updateMe);
 
-// 소셜 로그인
+// ==========================================
+// 1. 구글 로그인
+// ==========================================
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-
-// ✅ 수정됨: 콜백 로직을 컨트롤러로 연결
-router.get('/google/callback', 
-    passport.authenticate('google', { session: false }), 
+router.get('/google/callback',
+    passport.authenticate('google', { session: false }),
     controller.googleCallback
+);
+
+// ==========================================
+// 2. 카카오 로그인 (▼▼▼ 여기 추가하세요 ▼▼▼)
+// ==========================================
+router.get('/kakao', passport.authenticate('kakao'));
+router.get('/kakao/callback',
+    passport.authenticate('kakao', { session: false }),
+    controller.kakaoCallback
 );
 
 module.exports = router;

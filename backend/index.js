@@ -1,73 +1,41 @@
-// ...existing code...
 require('dotenv').config();
-
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
 const cookieParser = require('cookie-parser');
-const session = require('express-session');
-const passport = require('passport');
+const passport = require('./src/config/passport'); // 🚨 경로 변경됨!
+
+// ✅ DB 연결 함수
+const connectDB = require("./src/config/db");
+
+// ✅ 각 기능별 라우트 불러오기
+const authRoutes = require("./src/auth/route");
+const lodgingRoutes = require("./src/lodging/route");
+const roomRoutes = require("./src/room/route");
+const bookingRoutes = require("./src/booking/route"); // 아까 만든거
 
 const app = express();
-
-// 환경 변수
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI;
-const FRONT_ORIGIN = process.env.FRONT_ORIGIN || 'http://localhost:5173';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'dev_session_secret_change_me';
 
-// 필수 값 확인
-if (!MONGO_URI) {
-  console.error('MONGO_URI가 설정되어 있지 않습니다. .env를 확인하세요.');
-  process.exit(1);
-}
-
-// MongoDB 연결
-mongoose.set('strictQuery', false);
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => {
-    console.error('MongoDB 연결 실패:', err.message);
-    process.exit(1);
-  });
+// DB 연결
+connectDB();
 
 // 미들웨어
-app.use(cors({
-  origin: FRONT_ORIGIN,
-  credentials: true,
-}));
+app.use(cors({ origin: process.env.FRONT_ORIGIN, credentials: true }));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(session({
-  secret: SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  },
-}));
 app.use(passport.initialize());
-app.use(passport.session());
 
-// TODO: passport 전략 설정 파일 연결 (예: ./config/passport)
-// require('./config/passport')(passport);
+// API 주소 연결
+app.use("/api/auth", authRoutes);
+app.use("/api/lodgings", lodgingRoutes);
+app.use("/api/rooms", roomRoutes);
+app.use("/api/bookings", bookingRoutes);
 
-// TODO: 라우트 마운트 (예: /auth, /users, /payments, /uploads)
-// app.use('/auth', require('./routes/auth'));
-
-// 기본 라우트
-app.get('/', (req, res) => {
-  res.json({ ok: true, message: 'Hotel backend running' });
+// 에러 핸들링
+app.use((req, res, next) => res.status(404).json({ success: false, message: 'Not Found' }));
+app.use((err, req, res, next) => {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
 });
 
-app.get('/health', (req, res) => res.send('ok'));
-
-// 서버 시작
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-//
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

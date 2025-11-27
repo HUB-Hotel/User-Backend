@@ -1,5 +1,4 @@
 const Booking = require("./model");
-// 🚨 수정됨: Room 모델의 위치는 '../room/model' 입니다.
 const Room = require("../room/model"); 
 
 // 날짜 계산 함수

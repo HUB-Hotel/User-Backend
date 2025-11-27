@@ -23,6 +23,17 @@ exports.login = async (req, res) => {
     }
 };
 
+// ✅ [추가] 로그아웃 (쿠키 삭제)
+exports.logout = (req, res) => {
+    try {
+        // 쿠키를 비우고 옵션을 동일하게 줘서 만료시킴
+        res.clearCookie('token', { httpOnly: true, path: "/" });
+        res.status(200).json(successResponse(null, "로그아웃 되었습니다.", 200));
+    } catch (err) {
+        res.status(500).json(errorResponse(err.message, 500));
+    }
+};
+
 exports.getMe = async (req, res) => {
     try {
         const data = await authService.getMeService(req.user.id);

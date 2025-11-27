@@ -12,69 +12,72 @@ const userSchema = new mongoose.Schema(
             match: [EMAIL_REGEX, "유효한 이메일"],
             unique: true,
             required: function () {
-                return this.provider === 'local'; // ✅ 수정: 카카오, 구글 통합 대응
+                return this.provider === 'local';
             }
         },
-        avatarUrl: {
-            type: String
+
+        // 프로필 이미지 (profileImage 사용 추천)
+        profileImage: {
+            type: String,
+            default: "" // 없으면 빈 문자열
         },
-        // [추가 2] 찜한 숙소 목록 (Lodging ID들을 배열로 저장)
+
+        // 생년월일 (미성년자 체크용 및 생일 쿠폰 적용)
+        birthDate: {
+            type: Date
+        },
+
+        // 찜 목록
         wishlist: [{
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Lodging'
         }],
+
         passwordHash: {
             type: String,
             select: false
         },
-        displayName: {
+
+        name: { 
             type: String,
-            default: "고객님"
+            required: true
         },
-        phone: {
+
+        phoneNumber: {
             type: String,
             trim: true,
-            unique: true,  // 중복 방지
-            sparse: true,  // 소셜 유저는 null 허용 (unique 충돌 방지)
-            required: function () {
-                // provider가 'local'일 때만 필수!
-                return this.provider === 'local';
-            }
+            sparse: true,
+            unique: true,
+
+            // (나중에 필수 체크가 필요하면 아래 주석 해제)
+            // required: function () {
+            //     return this.provider === 'local';
+            // }
         },
+
+        address: {
+            type: String
+        },
+
         role: {
             type: String,
             enum: ["user", "admin"],
             default: "user",
             index: true
         },
+
         provider: {
             type: String,
             enum: ['local', 'kakao', 'google'],
             default: 'local'
         },
-        kakaoId: {
-            type: String,
-            index: true,
-            unique: true,
-            sparse: true
-        },
-        googleId: {
-            type: String,
-            index: true,
-            unique: true,
-            sparse: true
-        },
-        isActive: {
-            type: Boolean,
-            default: true
-        },
-        failedLoginAttempts: {
-            type: Number,
-            default: 0
-        },
-        lastLoginAttempt: {
-            type: Date
-        }
+
+        kakaoId: { type: String, index: true, unique: true, sparse: true },
+        googleId: { type: String, index: true, unique: true, sparse: true },
+
+        isActive: { type: Boolean, default: true },
+        failedLoginAttempts: { type: Number, default: 0 },
+        lastLoginAttempt: { type: Date }
     },
     {
         timestamps: true

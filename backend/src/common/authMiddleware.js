@@ -21,7 +21,17 @@ exports.verifyToken = (req, res, next) => {
 
     // 토큰 검증
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // 다음 단계에서 쓰라고 user 정보 저장
+
+    // ▼▼▼ [추가하면 좋은 로직] ▼▼▼
+    // 토큰은 유효해도, 실제 DB에서 정지된 유저인지 한 번 더 체크
+    // (이걸 하려면 User 모델을 require 해야 함)
+    // const User = require("../auth/model");
+    // const currentUser = await User.findById(decoded.id);
+    // if (!currentUser || !currentUser.isActive) {
+    //    return res.status(401).json(errorResponse("정지된 계정입니다.", 401));
+    // }
+
+    req.user = decoded;
     next();
   } catch (err) {
     return res.status(401).json(errorResponse("유효하지 않은 토큰입니다.", 401));

@@ -39,10 +39,10 @@ passport.use(new KakaoStrategy({
         if (!user) {
             user = await User.create({
                 email: email || undefined,
-                displayName,
+                name: displayName,
                 kakaoId,
                 provider: "kakao",
-                avatarUrl: photoUrl
+                profileImage: profile._json?.properties?.profile_image
             });
         }
         return done(null, user);
@@ -72,10 +72,10 @@ passport.use(new GoogleStrategy({
         if (!user) {
             user = await User.create({
                 email,
-                displayName,
+                name: displayName,
                 googleId,
                 provider: "google",
-                avatarUrl: photoUrl
+                profileImage: profile.photos?.[0]?.value
             });
         }
         return done(null, user);

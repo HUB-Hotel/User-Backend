@@ -11,7 +11,8 @@ const connectDB = require("./src/config/db");
 const authRoutes = require("./src/auth/route");
 const lodgingRoutes = require("./src/lodging/route");
 const roomRoutes = require("./src/room/route");
-const bookingRoutes = require("./src/booking/route"); // 아까 만든거
+const bookingRoutes = require("./src/booking/route");
+const bookmarkRoutes = require("./src/bookmark/route");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,6 +31,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/lodgings", lodgingRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/bookmarks", bookmarkRoutes);
 
 // 에러 핸들링
 app.use((req, res, next) => res.status(404).json({ success: false, message: 'Not Found' }));

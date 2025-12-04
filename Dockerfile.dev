@@ -1,0 +1,17 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# package.json과 lock 파일 복사
+COPY package*.json ./
+
+# 의존성 설치
+RUN npm install
+
+# 전체 소스 복사 (실제 개발 시에는 볼륨으로 덮어씀)
+COPY . .
+
+EXPOSE 3000
+
+# nodemon 기반 개발 서버 실행
+CMD ["npm", "run", "dev"]

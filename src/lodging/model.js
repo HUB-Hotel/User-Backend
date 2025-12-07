@@ -1,73 +1,125 @@
-// backend/models/Lodging.js
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const lodgingSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true
+const lodgingSchema = new mongoose.Schema(
+  {
+    // =========================================================
+    // 1. 사업자 백엔드 기준 (필드명 및 구조 일치시킴)
+    // =========================================================
+
+    // 숙소 이름 (name -> lodgingName 변경됨)
+    lodgingName: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 50
     },
-    category: {
-        type: String,
-        required: true
-    },  // 호텔, 펜션 등
-    country: {
-        type: String,
-        required: true
-    },   // 나라 (예: 한국, 일본)
+
     address: {
-        type: String,
-        required: true
-    },   // 상세 주소
-    lat: {
-        type: Number,
-        required: true
-    }, // 위도 (Latitude)
-    lng: {
-        type: Number,
-        required: true
-    }, // 경도 (Longitude)
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 255
+    },
+
     starRating: {
-        type: Number,
-        default: 0
-    },    // 숙소 성급 (5성급 등)
-    hashtags: [String],  // 해시태그 (예: ["#오션뷰", "#커플"])
-    businessId: {
-        type: String,
-        required: true,
-        index: true
-    }, // business backend의 사장님 ID (String으로 저장)
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
+      default: 3
+    },
+
     description: {
-        type: String
+      type: String,
+      required: true,
+      trim: true
     },
-    images: [String],
-    amenities: [String],
-    rating: {
-        type: Number,
-        default: 0
-    },        // 평균 평점 (리뷰에서 계산해서 넣을 값)
-    // [추가 1] 검색 목록에 보여줄 '최저가' (방 등록/수정할 때 갱신됨)
-    minPrice: {
-        type: Number,
-        default: 0, index: true
+
+    images: {
+      type: [String],
+      default: [],
+      trim: true
     },
-    // [추가 2] 리뷰 개수 (평점만 있으면 신뢰도 부족, 개수도 필요)
-    reviewCount: {
-        type: Number,
-        default: 0
+
+    country: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 50
     },
-    // [추가 3] 체크인/체크아웃 시간 (호텔마다 다르니까)
-    checkInTime: {
-        type: String,
-        default: "15:00"
+
+    category: {
+      type: String,
+      enum: ["호텔", "모텔", "리조트", "게스트하우스", "에어비앤비"],
+      required: true
     },
-    checkOutTime: {
-        type: String,
-        default: "11:00"
+
+    // 해시태그 (hashtags -> hashtag 변경됨)
+    hashtag: {
+      type: [String],
+      default: [],
+      trim: true,
     },
-},
-    {
-        timestamps: true
-    }
+
+    // 사업자 ID (String -> ObjectId 변경됨)
+    businessId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Business',
+      required: true,
+      index: true
+    },
+
+    // 편의시설 (Amenity 모델 참조 방식)
+    amenityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Amenity',
+      required: false
+    },
+
+    bookingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Booking',
+      required: false
+    },
+
+    // =========================================================
+    // 2. [요청 사항] 사용자 앱 필수 필드 (사업자 팀에 추가 요청할 것들)
+    // =========================================================
+
+    // 📍 지도 좌표 (지도 서비스 필수)
+    lat: { type: Number },
+    lng: { type: Number },
+
+    // 📊 통계 정보 (정렬 및 필터링용 - 리뷰 작성 시 업데이트됨)
+    rating: { type: Number, default: 0, index: -1 }, // 평점
+    reviewCount: { type: Number, default: 0 },       // 리뷰 수
+    minPrice: { type: Number, default: 0, index: 1 }, // 최저가
+
+    maxGuests: {
+      type: Number,
+      default: 2, // 기본값
+      index: true // 검색 속도 향상
+    },
+
+    // ⏰ 이용 시간 (UI 표시용)
+    checkInTime: { type: String, default: "15:00" },
+    checkOutTime: { type: String, default: "11:00" }
+  },
+  {
+    timestamps: true,
+    collection: 'lodgings' // 컬렉션 이름 일치
+  }
 );
+
+// 인덱스 설정 (사업자 설정 + 사용자 검색용 병합)
+lodgingSchema.index({ businessId: 1, createdAt: -1 });
+lodgingSchema.index({ country: 1 });
+lodgingSchema.index({ category: 1 });
+lodgingSchema.index({ starRating: -1 });
+lodgingSchema.index({ amenityId: 1 });
+// 추가 인덱스
+lodgingSchema.index({ lodgingName: 1 }); // 이름 검색용
+lodgingSchema.index({ minPrice: 1 });    // 가격순 정렬용
+lodgingSchema.index({ rating: -1 });     // 평점순 정렬용
 
 module.exports = mongoose.model('Lodging', lodgingSchema);

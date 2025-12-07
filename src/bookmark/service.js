@@ -1,33 +1,28 @@
 const User = require("../auth/model");
-const Lodging = require("../lodging/model");
+const Lodging = require("../lodging/model"); // 숙소 존재 확인용
 
-// 1. 북마크 토글 (ON/OFF)
-exports.toggleBookmarkService = async (userId, lodgingId) => {
-    const user = await User.findById(userId);
-    if (!user) throw { status: 404, message: "사용자 없음" };
-
-    // Lodging이 진짜 있는지 확인
+// 1. 찜 추가
+exports.addBookmarkService = async (userId, lodgingId) => {
+    // 숙소가 진짜 있는지 확인
     const lodging = await Lodging.findById(lodgingId);
-    if (!lodging) throw { status: 404, message: "숙소 없음" };
+    if (!lodging) throw { status: 404, message: "숙소를 찾을 수 없습니다." };
 
-    // 이미 찜했는지 확인
-    const isBookmarked = user.wishlist.includes(lodgingId);
-
-    if (isBookmarked) {
-        // 이미 있으면 -> 삭제 (Pull)
-        user.wishlist.pull(lodgingId);
-        await user.save();
-        return { isBookmarked: false, message: "찜 목록에서 삭제했습니다." };
-    } else {
-        // 없으면 -> 추가 (Push)
-        user.wishlist.push(lodgingId);
-        await user.save();
-        return { isBookmarked: true, message: "찜 목록에 추가했습니다." };
-    }
+    // $addToSet: 이미 있으면 추가 안 함 (중복 방지)
+    await User.findByIdAndUpdate(userId, {
+        $addToSet: { wishlist: lodgingId }
+    });
 };
 
-// 2. 내 북마크 목록 조회
+// 2. 찜 삭제
+exports.removeBookmarkService = async (userId, lodgingId) => {
+    // $pull: 배열에서 해당 ID 제거
+    await User.findByIdAndUpdate(userId, {
+        $pull: { wishlist: lodgingId }
+    });
+};
+
+// 3. 내 북마크 목록 조회
 exports.getMyBookmarksService = async (userId) => {
-    const user = await User.findById(userId).populate("wishlist"); // 숙소 정보 통째로 가져옴
-    return user.wishlist;
+    const user = await User.findById(userId).populate("wishlist");
+    return user ? user.wishlist : [];
 };

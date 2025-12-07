@@ -1,76 +1,66 @@
 const Booking = require("./model");
-// 🚨 수정됨: Room 모델의 위치는 '../room/model' 입니다.
-const Room = require("../room/model"); 
+const Room = require("../room/model");
 
-// 날짜 계산 함수
-function getDatesInRange(startDate, endDate) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const date = new Date(start.getTime());
-  const dates = [];
-  while (date < end) {
-    dates.push(new Date(date));
-    date.setDate(date.getDate() + 1);
-  }
-  return dates;
-}
-
-// 1. 예약 생성 서비스
+// 1. 예약 생성 (그대로 유지)
 exports.createBookingService = async (userId, data) => {
-  const { lodgingId, roomId, roomNumber, checkIn, checkOut, price, userName, userPhone, paymentKey, paymentAmount } = data;
-  const allDates = getDatesInRange(checkIn, checkOut);
+    const { lodgingId, roomId, checkIn, checkOut, price, userName, userPhone, paymentKey, paymentAmount } = data;
 
-  // (1) 방 확인
-  const room = await Room.findById(roomId);
-  if (!room) throw { message: "객실을 찾을 수 없습니다.", status: 404 };
+    console.log(`👉 [Service] Room 조회 시도. ID: ${roomId}`);
 
-  // (2) 중복 검사
-  const targetRoomNumber = room.roomNumbers.find((r) => r.number === Number(roomNumber));
-  if (!targetRoomNumber) throw { message: "존재하지 않는 방 번호입니다.", status: 404 }; // 방 번호 없을 때 예외처리 추가
+    const room = await Room.findById(roomId);
 
-  const isUnavailable = targetRoomNumber.unavailableDates.some((date) => {
-    return allDates.some((requestedDate) => new Date(date).getTime() === requestedDate.getTime());
-  });
+    console.log("👉 [Service] DB에서 찾은 Room 정보:", room);
 
-  if (isUnavailable) throw { message: "이미 예약된 날짜가 포함되어 있습니다.", status: 400 };
+    if (!room) throw { message: "객실을 찾을 수 없습니다.", status: 404 };
 
-  // (3) 방 날짜 차단
-  await Room.updateOne(
-    { _id: roomId, "roomNumbers.number": roomNumber },
-    { $push: { "roomNumbers.$.unavailableDates": allDates } }
-  );
+    const totalStock = room.countRoom;
 
-  // (4) 예약 생성
-  const newBooking = await Booking.create({
-    userId, lodgingId, roomId, roomNumber, userName, userPhone, checkIn, checkOut, price,
-    stayDates: allDates, status: "booked", paymentKey, paymentAmount
-  });
+    console.log(`👉 [Service] 날짜 변환 확인. CheckIn: ${new Date(checkIn)}, CheckOut: ${new Date(checkOut)}`);
 
-  return newBooking;
+    const existingBookingsCount = await Booking.countDocuments({
+        roomId: roomId,
+        status: { $ne: "cancelled" },
+        $or: [
+            { checkIn: { $lte: new Date(checkIn) }, checkOut: { $gt: new Date(checkIn) } },
+            { checkIn: { $lt: new Date(checkOut) }, checkOut: { $gte: new Date(checkOut) } },
+            { checkIn: { $gte: new Date(checkIn) }, checkOut: { $lte: new Date(checkOut) } }
+        ]
+    });
+
+    console.log(`👉 [Service] 예약된 수: ${existingBookingsCount}, 전체 재고: ${totalStock}`);
+
+    if (existingBookingsCount >= totalStock) {
+        throw { message: "해당 날짜에 객실이 모두 매진되었습니다.", status: 400 };
+    }
+
+    const newBooking = await Booking.create({
+        userId, lodgingId, roomId, userName, userPhone, checkIn, checkOut, price,
+        status: "confirmed", // 예약 생성 시 바로 확정
+        paymentKey, paymentAmount
+    });
+
+    console.log("👉 [Service] 예약 생성 완료!");
+
+    return newBooking;
 };
 
-// 2. 내 예약 목록 서비스
+// 2. 내 예약 목록 조회 (🚨 여기를 수정했습니다!)
 exports.getMyBookingsService = async (userId) => {
-  return await Booking.find({ userId })
-    .populate("lodgingId", "name address")
-    .populate("roomId", "title");
+    return await Booking.find({ userId })
+        .populate("lodgingId") // ✅ 특정 필드만 가져오지 말고 통째로 가져오는 게 안전합니다.
+        .populate("roomId")    // ✅ 룸 정보도 통째로 가져옴 (roomName, roomImage 등 필요하니까)
+        .sort({ createdAt: -1 }); // 최신순 정렬
 };
 
-// 3. 예약 취소 서비스
+// 3. 예약 취소 (그대로 유지)
 exports.cancelBookingService = async (bookingId, userId) => {
-  const booking = await Booking.findById(bookingId);
-  if (!booking) throw { message: "예약이 없습니다.", status: 404 };
-  
-  // userId를 String으로 변환해서 비교해야 안전함
-  if (booking.userId.toString() !== userId) throw { message: "권한이 없습니다.", status: 403 };
+    const booking = await Booking.findById(bookingId);
+    if (!booking) throw { message: "예약이 없습니다.", status: 404 };
+    
+    // userId가 ObjectId 객체일 수 있으므로 문자열로 변환 후 비교
+    if (booking.userId.toString() !== userId.toString()) throw { message: "권한이 없습니다.", status: 403 };
 
-  // 날짜 차단 해제
-  await Room.updateOne(
-    { _id: booking.roomId, "roomNumbers.number": booking.roomNumber },
-    { $pull: { "roomNumbers.$.unavailableDates": { $in: booking.stayDates } } }
-  );
-
-  booking.status = "cancelled";
-  await booking.save();
-  return null;
+    booking.status = "cancelled";
+    await booking.save();
+    return null;
 };

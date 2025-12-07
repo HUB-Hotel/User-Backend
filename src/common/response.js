@@ -4,6 +4,7 @@ exports.successResponse = (data, message = "SUCCESS", code = 200) => {
     data,         // 실제 데이터 (객체, 배열 등)
     message,      // 성공 메시지
     resultCode: code, // HTTP 상태 코드 (200, 201 등)
+    success: true
   };
 };
 

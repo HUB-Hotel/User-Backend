@@ -1,36 +1,97 @@
-// backend/models/Room.js
 const mongoose = require("mongoose");
 
 const roomSchema = new mongoose.Schema(
   {
-    // 🚨 핵심: 이 방이 어느 숙소 소속인지 연결하는 고리!
     lodgingId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Lodging", // Lodging 모델을 참조함
+      ref: 'Lodging',
       required: true,
+      index: true
     },
-
-    title: { type: String, required: true }, // 예: "디럭스 오션뷰"
-    price: { type: Number, required: true }, // 1박 가격
-    maxPeople: { type: Number, required: true }, // 최대 인원
-    desc: { type: String, required: true }, // 방 설명
-    photos: [String], // 방 사진들
-
-    // 실제 방 번호 관리 (재고 관리)
-    roomNumbers: [{
-      number: Number,
-      unavailableDates: { type: [Date] }
-    }],
-    // [추가 1] 침대 타입 (예: "더블 1개", "싱글 2개")
-    bedType: { type: String, required: true },
-
-    // [추가 2] 객실 크기 (평수 또는 m2) - 호텔 정보의 기본
-    size: { type: String }, // 예: "24m²"
-
-    // [추가 3] 전망 (오션뷰, 시티뷰 등) - 필터링할 때 좋음
-    view: { type: String },
+    
+    roomName: { // (구 title)
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100
+    },
+    
+    roomSize: { // (구 size)
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 50
+    },
+    
+    capacityMin: { // [신규] 최소 인원
+      type: Number,
+      required: true,
+      min: 1
+    },
+    
+    capacityMax: { // (구 maxPeople)
+      type: Number,
+      required: true,
+      min: 1
+    },
+    
+    checkInTime: { // [신규] 입실 시간
+      type: String,
+      required: true,
+      default: "15:00"
+    },
+    
+    checkOutTime: { // [신규] 퇴실 시간
+      type: String,
+      required: true,
+      default: "11:00"
+    },
+    
+    roomImage: { // (구 photos 배열 -> 단일 문자열로 변경됨 ⚠️)
+      type: String,
+      trim: true
+    },
+    
+    price: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    
+    countRoom: { // [신규] 방 개수 (재고)
+      type: Number,
+      required: true,
+      min: 1,
+      default: 1
+    },
+    
+    ownerDiscount: { // [신규] 사장님 할인율 ??
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100
+    },
+    
+    platformDiscount: { // [신규] 플랫폼 할인율
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100
+    },
+    
+    status: { // [신규] 방 상태
+      type: String,
+      enum: ['active', 'inactive', 'maintenance'],
+      default: 'active',
+      index: true
+    }
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    collection: 'rooms' // DB 컬렉션 이름을 'rooms'로 고정
+  }
 );
 
-module.exports = mongoose.model("Room", roomSchema);
+roomSchema.index({ lodgingId: 1, createdAt: -1 });
+
+module.exports = mongoose.model('Room', roomSchema);

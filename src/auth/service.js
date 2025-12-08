@@ -12,20 +12,85 @@ exports.generateToken = (user) => {
 };
 
 exports.registerService = async (data) => {
-    // ... (회원가입 코드는 기존과 동일) ...
-    const { email, password, name, role, phoneNumber, address, birthDate, profileImage } = data;
+    const { email, password, displayName, name, role, phone, phoneNumber, address, birthDate, profileImage } = data;
 
-    if (await User.findOne({ email: email.toLowerCase() })) throw { status: 400, message: "이미 가입된 이메일" };
-    if (phoneNumber && await User.findOne({ phoneNumber })) throw { status: 400, message: "이미 가입된 번호" };
+    // phone과 phoneNumber 둘 다 지원 (Frontend에서 phone으로 보낼 수 있음)
+    const finalPhoneNumber = phoneNumber || phone;
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({
-        email, passwordHash, name, role, phoneNumber,
-        address, birthDate, profileImage,
-        provider: 'local'
-    });
+    // 필수 필드 검증
+    if (!email) throw { status: 400, message: "이메일을 입력해주세요." };
+    if (!password) throw { status: 400, message: "비밀번호를 입력해주세요." };
+    if (!displayName && !name) throw { status: 400, message: "이름을 입력해주세요." };
 
-    return user.toSafeJSON();
+    // 이메일 형식 검증
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        throw { status: 400, message: "올바른 이메일 형식을 입력해주세요." };
+    }
+
+    // 비밀번호 길이 검증
+    if (password.length < 6) {
+        throw { status: 400, message: "비밀번호는 최소 6자 이상이어야 합니다." };
+    }
+
+    if (await User.findOne({ email: email.toLowerCase() })) {
+        throw { status: 400, message: "이미 가입된 이메일입니다." };
+    }
+    
+    if (finalPhoneNumber && await User.findOne({ phoneNumber: finalPhoneNumber })) {
+        throw { status: 400, message: "이미 사용 중인 전화번호입니다." };
+    }
+
+    try {
+        const passwordHash = await bcrypt.hash(password, 10);
+        const user = await User.create({
+            email: email.toLowerCase(),
+            passwordHash,
+            name: displayName || name,
+            role,
+            phoneNumber: finalPhoneNumber,
+            address,
+            birthDate,
+            profileImage,
+            provider: 'local'
+        });
+
+        return user.toSafeJSON();
+    } catch (error) {
+        // Mongoose validation 에러 처리
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(err => {
+                const field = err.path;
+                let message = err.message;
+                
+                // 필드명을 사용자 친화적으로 변환
+                const fieldNames = {
+                    'name': '이름',
+                    'email': '이메일',
+                    'password': '비밀번호',
+                    'phoneNumber': '전화번호'
+                };
+                
+                const fieldName = fieldNames[field] || field;
+                
+                // 메시지 변환
+                if (message.includes('required')) {
+                    message = `${fieldName}을(를) 입력해주세요.`;
+                } else if (message.includes('unique')) {
+                    message = `이미 사용 중인 ${fieldName}입니다.`;
+                } else if (message.includes('valid') || message.includes('유효한')) {
+                    message = `올바른 ${fieldName} 형식을 입력해주세요.`;
+                }
+                
+                return message;
+            });
+            
+            throw { status: 400, message: messages.join(' ') };
+        }
+        
+        // 다른 에러는 그대로 throw
+        throw error;
+    }
 };
 
 // 🔥 [핵심 수정] 로그인 로직 강화
@@ -34,7 +99,7 @@ exports.loginService = async (email, password) => {
     const user = await User.findOne({ email: email.toLowerCase() })
         .select("+passwordHash +role +isActive +failedLoginAttempts +lastLoginAttempt");
 
-    if (!user) throw { status: 400, message: "이메일 또는 비밀번호 불일치" };
+    if (!user) throw { status: 400, message: "이메일 또는 비밀번호가 올바르지 않습니다." };
 
     // 2. [질문 3 해결] 계정 잠금 확인
     if (user.isActive === false) {
@@ -72,11 +137,13 @@ exports.updateMeService = async (userId, data) => {
     const { name, phoneNumber, password, address, profileImage, birthDate } = data;
 
     const user = await User.findById(userId);
-    if (!user) throw { status: 404, message: "사용자 없음" };
+    if (!user) throw { status: 404, message: "사용자 정보를 찾을 수 없습니다." };
 
-    // 2. 전화번호 중복 체크 (기존 유지)
+    // 전화번호 중복 체크
     if (phoneNumber && phoneNumber !== user.phoneNumber) {
-        if (await User.findOne({ phoneNumber })) throw { status: 400, message: "이미 사용 중인 번호" };
+        if (await User.findOne({ phoneNumber })) {
+            throw { status: 400, message: "이미 사용 중인 전화번호입니다." };
+        }
         user.phoneNumber = phoneNumber;
     }
 
@@ -88,9 +155,14 @@ exports.updateMeService = async (userId, data) => {
     // ✅ [추가] 생년월일 업데이트 로직 추가!
     if (birthDate) user.birthDate = birthDate;
 
-    // 4. 비밀번호 변경 (기존 유지)
+    // 비밀번호 변경
     if (password) {
-        if (user.provider !== 'local') throw { status: 400, message: "소셜 유저 비번 변경 불가" };
+        if (user.provider !== 'local') {
+            throw { status: 400, message: "소셜 로그인 계정은 비밀번호를 변경할 수 없습니다." };
+        }
+        if (password.length < 6) {
+            throw { status: 400, message: "비밀번호는 최소 6자 이상이어야 합니다." };
+        }
         user.passwordHash = await bcrypt.hash(password, 10);
     }
 
@@ -99,9 +171,8 @@ exports.updateMeService = async (userId, data) => {
 };
 
 exports.getMeService = async (userId) => {
-    // ... (기존과 동일) ...
     const user = await User.findById(userId);
-    if (!user) throw { status: 404, message: "사용자 없음" };
+    if (!user) throw { status: 404, message: "사용자 정보를 찾을 수 없습니다." };
     return user.toSafeJSON();
 };
 

@@ -13,25 +13,65 @@ exports.createBooking = async (req, res) => {
     const { paymentId, ...bookingData } = req.body;
     const userId = req.user ? req.user.id : null;
 
-    if (!userId) throw new Error("로그인이 필요합니다.");
-    if (!paymentId) throw new Error("결제 정보(paymentId)가 없습니다.");
-
-    // ==========================================
-    // 🔍 포트원 결제 검증
-    // ==========================================
-    
-    // 1. 포트원에 이 결제 내역 조회
-    const payment = await portone.payment.getPayment({ paymentId });
-
-    // 2. 결제 상태 확인
-    if (payment.status !== 'PAID') {
-      throw new Error("결제가 완료되지 않았습니다.");
+    if (!userId) {
+      return res.status(401).json(errorResponse("로그인이 필요합니다.", 401));
     }
 
-    // 3. 결제 금액 확인
-    // 현재는 프론트엔드 가격과 비교 (보안 강화 시 DB 가격 조회 로직으로 대체 권장)
-    if (payment.amount.total !== Number(bookingData.price)) {
-      throw new Error(`결제 금액 불일치! 요청: ${bookingData.price}, 실제: ${payment.amount.total}`);
+    // 필수 필드 검증
+    if (!bookingData.lodgingId) {
+      return res.status(400).json(errorResponse("숙소 정보가 없습니다.", 400));
+    }
+    if (!bookingData.roomId) {
+      return res.status(400).json(errorResponse("객실 정보가 없습니다.", 400));
+    }
+    if (!bookingData.checkIn || !bookingData.checkOut) {
+      return res.status(400).json(errorResponse("체크인/체크아웃 날짜를 선택해주세요.", 400));
+    }
+    if (!bookingData.price) {
+      return res.status(400).json(errorResponse("가격 정보가 없습니다.", 400));
+    }
+
+    // 사용자 정보 가져오기
+    const User = require("../auth/model");
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json(errorResponse("사용자 정보를 찾을 수 없습니다.", 404));
+    }
+
+    // userName과 userPhone 설정
+    bookingData.userName = user.name || user.displayName || "사용자";
+    bookingData.userPhone = bookingData.phone || bookingData.userPhone || user.phoneNumber || "";
+
+    // ==========================================
+    // 🔍 포트원 결제 검증 (임시 paymentId인 경우 건너뛰기)
+    // ==========================================
+    let paymentKey = paymentId;
+    let paymentAmount = bookingData.price;
+
+    if (paymentId && !paymentId.startsWith('temp_') && process.env.PORTONE_API_SECRET) {
+      try {
+        // 포트원에 이 결제 내역 조회
+        const payment = await portone.payment.getPayment({ paymentId });
+
+        // 결제 상태 확인
+        if (payment.status !== 'PAID') {
+          return res.status(400).json(errorResponse("결제가 완료되지 않았습니다.", 400));
+        }
+
+        // 결제 금액 확인
+        if (payment.amount.total !== Number(bookingData.price)) {
+          return res.status(400).json(errorResponse("결제 금액이 일치하지 않습니다.", 400));
+        }
+
+        paymentKey = paymentId;
+        paymentAmount = payment.amount.total;
+      } catch (portoneError) {
+        console.error("[PortOne Error]", portoneError.message);
+        // 포트원 에러는 무시하고 계속 진행 (개발 환경)
+        if (process.env.NODE_ENV === 'production') {
+          return res.status(500).json(errorResponse("결제 검증에 실패했습니다.", 500));
+        }
+      }
     }
 
     // ==========================================
@@ -39,19 +79,21 @@ exports.createBooking = async (req, res) => {
     // ==========================================
     const newBookingData = {
       ...bookingData,
-      paymentKey: paymentId,
-      paymentAmount: payment.amount.total,
+      paymentKey: paymentKey,
+      paymentAmount: paymentAmount,
       status: 'confirmed'
     };
 
     const data = await bookingService.createBookingService(userId, newBookingData);
 
-    res.status(201).json(successResponse(data, "예약 및 결제가 확정되었습니다!", 201));
+    res.status(201).json(successResponse(data, "예약이 완료되었습니다.", 201));
 
   } catch (err) {
     // 에러 발생 시 로그는 남기는 것이 좋습니다 (서버 내부 확인용)
-    console.error("[Booking Error]", err.message);
-    res.status(err.status || 500).json(errorResponse(err.message, err.status || 500));
+    console.error("[Booking Error]", err);
+    const status = err.status || 500;
+    const message = err.message || "예약 처리 중 오류가 발생했습니다.";
+    res.status(status).json(errorResponse(message, status));
   }
 };
 

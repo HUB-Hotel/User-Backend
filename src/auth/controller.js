@@ -4,22 +4,34 @@ const { successResponse, errorResponse } = require("../common/response");
 exports.register = async (req, res) => {
     try {
         const data = await authService.registerService(req.body);
-        res.status(201).json(successResponse(data, "회원가입 완료", 201));
+        res.status(201).json(successResponse(data, "회원가입이 완료되었습니다.", 201));
     } catch (err) {
-        res.status(err.status || 500).json(errorResponse(err.message, err.status || 500));
+        const status = err.status || 500;
+        const message = err.message || "회원가입 중 오류가 발생했습니다.";
+        res.status(status).json(errorResponse(message, status));
     }
 };
 
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
+        
+        if (!email) {
+            return res.status(400).json(errorResponse("이메일을 입력해주세요.", 400));
+        }
+        if (!password) {
+            return res.status(400).json(errorResponse("비밀번호를 입력해주세요.", 400));
+        }
+        
         const { user, token } = await authService.loginService(email, password);
 
         res.cookie('token', token, { httpOnly: true, path: "/" });
 
-        res.status(200).json(successResponse({ user, token }, "로그인 성공", 200));
+        res.status(200).json(successResponse({ user, token }, "로그인되었습니다.", 200));
     } catch (err) {
-        res.status(err.status || 500).json(errorResponse(err.message, err.status || 500));
+        const status = err.status || 500;
+        const message = err.message || "로그인 중 오류가 발생했습니다.";
+        res.status(status).json(errorResponse(message, status));
     }
 };
 
@@ -39,16 +51,20 @@ exports.getMe = async (req, res) => {
         const data = await authService.getMeService(req.user.id);
         res.status(200).json(successResponse(data, "내 정보 조회 성공", 200));
     } catch (err) {
-        res.status(err.status || 500).json(errorResponse(err.message, err.status || 500));
+        const status = err.status || 500;
+        const message = err.message || "사용자 정보를 불러오는데 실패했습니다.";
+        res.status(status).json(errorResponse(message, status));
     }
 };
 
 exports.updateMe = async (req, res) => {
     try {
         const data = await authService.updateMeService(req.user.id, req.body);
-        res.status(200).json(successResponse(data, "정보 수정 완료", 200));
+        res.status(200).json(successResponse(data, "정보가 수정되었습니다.", 200));
     } catch (err) {
-        res.status(err.status || 500).json(errorResponse(err.message, err.status || 500));
+        const status = err.status || 500;
+        const message = err.message || "정보 수정에 실패했습니다.";
+        res.status(status).json(errorResponse(message, status));
     }
 };
 
@@ -80,10 +96,20 @@ exports.kakaoCallback = (req, res) => {
 exports.resetPassword = async (req, res) => {
     try {
         const { email, name } = req.body;
+        
+        if (!email) {
+            return res.status(400).json(errorResponse("이메일을 입력해주세요.", 400));
+        }
+        if (!name) {
+            return res.status(400).json(errorResponse("이름을 입력해주세요.", 400));
+        }
+        
         const tempPassword = await authService.resetPasswordService(email, name);
         
         res.status(200).json(successResponse({ tempPassword }, "임시 비밀번호가 발급되었습니다."));
     } catch (err) {
-        res.status(err.status || 500).json(errorResponse(err.message, err.status || 500));
+        const status = err.status || 500;
+        const message = err.message || "비밀번호 재설정에 실패했습니다.";
+        res.status(status).json(errorResponse(message, status));
     }
 };
